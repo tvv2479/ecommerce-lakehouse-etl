@@ -1,2 +1,38 @@
-# ecommerce-lakehouse-etl
-Production-ready E-Commerce Big Data Lakehouse pipeline using Apache Spark, Delta Lake, and MinIO (S3). Implements Medallion Architecture (Bronze/Silver/Gold), data cleansing, deduplication, and optimized analytics with Broadcast Joins. A complete modern data engineering portfolio showcase.
+# E-Commerce Big Data Lakehouse Pipeline
+
+Конвейер больших данных (Big Data ETL pipeline), разработанный с использованием:
+* Apache Spark, 
+* Delta Lake, 
+* MinIO (S3). 
+
+Код реализует архитектуру **Medallion (Bronze -> Silver -> Gold)** для обработки, очистки и агрегации крупномасштабных логов кликов интернет-магазина.
+
+
+---
+
+## Архитектура и поток данных
+
+```text
+[ Сырые JSON логи ] ──► (Bronze Слой) ──► (Silver Слой) ──► (Gold Слой) ──► [ BI Витрины ]
+        │                       │                   │                 │
+    S3 / MinIO             Прямая запись       Очистка и дедуп.      Агрегации
+                            (Delta Lake)         (Delta Lake)     (Broadcast Join)
+```
+
+**Bronze слой:** Загрузка сырых JSON-логов кликов в Delta Lake со строгой валидацией схемы и обработкой битых записей (режим PERMISSIVE).
+
+**Silver слой:** Очистка данных, приведение типов, парсинг временных меток и дедупликация состояния с использованием оконных функций (ROW_NUMBER). Данные партиционируются по дате для эффективного отсечения ненужных блоков.
+
+**Gold слой:** Расчет бизнес-витрин путем соединения таблиц фактов со справочниками с использованием Broadcast Hash Join для исключения тяжелых сетевых пересылок.
+
+### Технологический стек
+* Вычислительный движок: Apache Spark 3.x (PySpark, Spark SQL)
+* Формат хранения: Delta Lake (ACID-транзакции, Time Travel, строгий контроль схем)
+* Объектное хранилище: MinIO (Локальное S3-совместимое хранилище)
+* Инфраструктура: Docker & Docker Compose
+
+### Инженерные практики, примененные в коде
+* **Идемпотентность и ACID:** Использование Delta Lake для безопасной транзакционной дозаписи и перезаписи данных без риска порчи файлов при сбоях.
+* **Тюнинг производительности (Broadcast Join):** Предотвращение сетевого Shuffle за счет рассылки маленьких справочных таблиц (raw_categories) на все воркеры при соединении.
+* **Управление памятью и партициями:** Применение `partitionBy("event_date")` в Silver слое для оптимизации чтения диска и реализации Partition Pruning.
+* **Структурированное логирование:** Использование стандартного модуля Python `logging` для мониторинга этапов выполнения.
